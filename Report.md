@@ -7,13 +7,14 @@
 
 **ANSWER**:  It seems, the agent could not reach to the given destination within a deadline by taking random actions. But rarely, it could. As observed, it could reach the destination usually at the beginning of simulation.
 
-The reward was between -1.0 and 2.0, it's like
+The reward was between -0.5 and 2.0, it's like
 * 0.0 reward for the 'None' action,
-* 2.0 reward for valid move etc.
+* 2.0 reward for valid move
+* -0.5 reward for valid but other direction
 
 The smartcab was jumping from one edge to another, it was very annoying and weird.
 
-The traffic light stays about 3 seconds (updates) at one state.
+The traffic light stays about 3 seconds (updates) at one state. So detouring time over the traffic light (at least 3 moves) was almost same as waiting time at the traffic light.
 
 ## Inform the Driving Agent
 
@@ -23,13 +24,15 @@ The traffic light stays about 3 seconds (updates) at one state.
 
 This is a navigation problem with a deadline. The mission is to reach a given destination with a given time in a given environment (grid space).
 
-The current location of the agent is the most important metric to complete the task. But in this problem the agent doesn't know it's location and destination. So the agent should follow the waypoint, it may waste time if goes in other direction.
+The current location of the agent is the most important metric to complete the task. But in this problem the agent doesn't know it's location and destination. So the agent should follow the waypoint, it may be punished if it goes in other direction.
 
 So I think, the following states are appropriate (ordered by importance):
 
-* `Next waypoint` - The next waypoint location relative to its current location and heading. Since current location and distance are unknown for the agent, the waypoint should be the most important information to navigate in the environment. Just by following the 'next_waypoint', the agent could reach the destination successfully, except traffic light rule.
+* `Next waypoint` - The next waypoint location relative to its current location and heading. Since current location and distance are unknown for the agent, the waypoint should be the most important information to navigate in the environment. Just by following the 'next_waypoint', the agent could reach the destination successfully, except traffic light rule. But the agent should learn other optimal moves while following the waypoint.
 
-* `Deadline` -  The current time left from the allotted deadline. The agent has to select a correct action according to deadline. It represents how many moves the agent has left, at maximum. The deadline must be enough for the task, otherwise it would be a mission impossible. So we may skip this information and follow the shortest path policy.
+ So I created a implicit state, which is a mix of last action and last waypoint. I think, this mixed state is appropriate for the problem. Because a mixed state will be better for learning than a single waypoint state.
+
+* `Deadline` -  The current time left from the allotted deadline. The agent has to select a correct action according to deadline. It represents how many moves the agent has left, at maximum. The deadline must be enough value for the task, otherwise it would be a mission impossible. So we may skip this information and follow the waypoint.
 
 * `Light` - traffic lights: red, green
 
@@ -40,9 +43,9 @@ So I think, the following states are appropriate (ordered by importance):
 
 **ANSWER**:  
 
-I think, 'Next waypoint' and 'Deadline' states are important for this task. But, we could ignore 'Deadline' state, because we could maintain it by policy.
+I think, in total, there are 4 usefull states. The 'Next waypoint' and 'Deadline' states are the most important for this task. But, we could ignore 'Deadline', 'Light', 'Oncoming car' states, because we could maintain it by traffic policy.
 
-We need to keep state combinations as few as possible, because many states (many combinations) will take longer time to "learn".
+We need to keep state combinations as few as possible, because many states (combinations) will take longer time to "learn".
 
 ## Implement a Q-Learning Driving Agent
 
@@ -58,21 +61,26 @@ Success rate is increased. Because it's learning from the past history.
 
 **ANSWER**
 
-Gamma, epsilon ?
+I tuned the parameters as below:
 
-Цаг хугацааны хувьд ?
-Зөв замаа олох тухайд ?
+* alpha = 0.5  # learning rate
+* gamma = 0.9  # discount
+* epsilon = 0.7 # exploration. The epsilon increases when the number of iteration increased. Then, the agent selects the greedy action with probability of this epsilon.
 
+At beginning of simulation, the agent makes a lot round movement and takes long stop at intersections. Over time these mistakes lowered and success rate is increased.
+
+The success rate was  greater than 90% for 100 simulation run.
 
 **QUESTION**: Does your agent get close to finding an optimal policy, i.e. reach the destination in the minimum possible time, and not incur any penalties? How would you describe an optimal policy for this problem?
 
 **ANSWER**
 
-Optimal policy is:
+I described the optimal policy as the following. And the goal is to maximize an average reward.
 
-1. obey traffic rule
-2. follow the waypoint, it will be a guiding path to the destination
-3. minimize travel time (to maintain the deadline)
-  * to follow the waypoint,  same time increase exploration to seek a better route
-  * to avoid U turns, don't go to the opposite direction of the waypoint
-  * to avoid circling in one place !!!
+  ```
+  Average reward = Total_reward / Total_time_or_move
+  ```
+
+After several simulation my agent's average reward was more than 1.32. I don't know if it's optimal or not, but based on reward values the average reward could be 2.0 at maximum. In other words, the agent's every movement is correct and perfect, and get 2.0 reward on every movement. But it may be not ideal.
+
+By observation, the agent was very close to an optimal policy.

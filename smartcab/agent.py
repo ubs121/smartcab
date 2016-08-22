@@ -9,26 +9,29 @@ from simulator import Simulator
 class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
 
+    actions = [None, 'forward', 'left', 'right']
+
     def __init__(self, env):
         super(LearningAgent, self).__init__(env)  # sets self.env = env, state = None, next_waypoint = None, and a default color
         self.color = 'red'  # override color
         self.planner = RoutePlanner(self.env, self)  # simple route planner to get next_waypoint
 
         # TODO: Initialize any additional variables here
-        self.epsilon = 0.1 # randomness or exploration
+        self.epsilon = 0.7 # epsilon
         self.alpha = 0.5 # learning rate
-        self.gamma = 0.9
-        self.q = {} # RESET ?
-        self.actions = [None, 'forward', 'left', 'right']
+        self.gamma = 0.9 # discount
 
+        self.k = 0
+        self.mem = {} # learning memory
+        self.total_reward = 0.0 # total reward for 'mem'
+        self.total_time = 0.0 # total spend time for 'mem'
 
     def reset(self, destination=None):
         self.planner.route_to(destination)
-        # TODO: Prepare for a new trip; reset any variables here, if required
-        self.state = ''
-        self.last_state = ''
-        self.last_action = ' '
-        self.last_waypoint = ' '
+
+        # Prepare for a new trip
+        self.state = '' # reset state
+        self.last_action = None
 
 
     def update(self, t):
@@ -37,61 +40,73 @@ class LearningAgent(Agent):
         inputs = self.env.sense(self)
         deadline = self.env.get_deadline(self)
 
-        # TODO: update state (last 2 waypoint and 1 action)
-        self.state = "{}{}{}".format(self.last_waypoint[0],
-            self.last_action[0] if self.last_action else ' ',
-            self.next_waypoint[0])
+        # update state
+        self.state = (self.last_action, self.next_waypoint)
 
-        # TODO: Select action according to your policy
+        # Select action according to your policy
         action = self.choose_action(inputs)
 
         # Execute action and get reward
         reward = self.env.act(self, action)
 
-        # TODO: Learn policy based on state, action, reward
-        self.learn(self.last_state, self.last_action, reward, self.state)
+        # Learn policy based on state, action, reward
+        self.learn(self.state, action, reward, deadline)
 
         print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
 
-        # remember values
-        self.last_state = self.state
-        self.last_waypoint = self.next_waypoint
-        self.last_action = action
+        if action:
+            self.last_action = action
 
+        self.total_reward += reward
+        self.total_time += 1 # every 1 move
 
-        # print self.q
-
-    def learn(self, state, action, reward, state2):
-        oldv = self.q.get((state, action), 0.0)
-        maxqnew = max([self.q.get((state2, a), 0.0) for a in self.actions])
-        self.q[(state, action)] = oldv + self.alpha * (reward + self.gamma*maxqnew - oldv)
+        if self.total_time > 0:
+            print 'average reward', self.total_reward/ self.total_time
 
     def choose_action(self, inputs):
-        if random.random() < self.epsilon:
-            action = random.choice(self.actions) #self.next_waypoint
-        else:
-            ql = [self.q.get((self.state, a), 0.0) for a in self.actions]
-            maxQ = max(ql)
-            best = [i for i in range(len(self.actions)) if ql[i] == maxQ]
-            i = random.choice(best)
-            action = self.actions[i]
+        acts = self.actions[:] # all possible actions
 
         # Policy1: Follow traffic rule
-        action_okay = True
-        if action == 'right':
-            if inputs['light'] == 'red' and inputs['left'] == 'forward':
-                action_okay = False
-        elif action == 'forward':
-            if inputs['light'] == 'red':
-                action_okay = False
-        elif action == 'left':
-            if inputs['light'] == 'red' or (inputs['oncoming'] == 'forward' or inputs['oncoming'] == 'right'):
-                action_okay = False
+        if inputs['light'] == 'red': # red light
+            # remove illegal moves
+            acts.remove('forward')
+            acts.remove('left')
 
-        if not action_okay:
-            action = None
+            if inputs['left'] == 'forward':
+                acts.remove('right') # no right turn
+        else: # green light
+            if inputs['oncoming'] == 'forward' or inputs['oncoming'] == 'right':
+                acts.remove('left') # no left turn
+
+        # select greedy action with probability 1−p(k), k is iteration count
+        self.k += 1
+        self.epsilon = 1.0 - (1000.0/(2000.0 + 10 * self.k)) # k ~ 100 times * 30 * 10 constant
+        print 'self.epsilon', self.epsilon
+
+        if random.random() < self.epsilon:
+            ql = [self.mem.get((self.state, a), 0.0) for a in acts]
+            i = ql.index(max(ql))
+            action = acts[i]
+        else: # do exploration
+            action = random.choice(acts)
 
         return action
+
+    def learn(self, state, action, reward, deadline):
+        # next state (kind of hacking?)
+        next_state = self.planner.next_waypoint()
+
+        # Q learning formula
+        # Adapted from: https://studywolf.wordpress.com/2012/11/25/reinforcement-learning-q-learning-and-exploration/)
+        # Reference from Udacity Machine Learning Course. https://classroom.udacity.com/nanodegrees/nd009/parts/0091345409/modules/e64f9a65-fdb5-4e60-81a9-72813beebb7e/lessons/5446820041/concepts/6348990570923
+        sa_value = self.mem.get((state, action), 0.0)
+        maxQ = max([self.mem.get((next_state, a), 0.0) for a in self.actions])
+
+        # Q(s,a) <- Q(s,a)+alpha[r+ gamma* max Q(s',a')-Q(s,a)]
+        self.mem[(state, action)] = sa_value + self.alpha * (reward + self.gamma*maxQ - sa_value)
+
+        #print self.mem
+
 
 def run():
     """Run the agent for a finite number of trials."""
@@ -99,11 +114,11 @@ def run():
     # Set up environment and agent
     e = Environment()  # create environment (also adds some dummy traffic)
     a = e.create_agent(LearningAgent)  # create agent
-    e.set_primary_agent(a, enforce_deadline=False)  # specify agent to track
+    e.set_primary_agent(a, enforce_deadline=True)  # specify agent to track
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.5, display=True)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0.3, display=True)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
     sim.run(n_trials=100)  # run for a specified number of trials
