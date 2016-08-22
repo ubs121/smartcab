@@ -53,6 +53,11 @@ We need to keep state combinations as few as possible, because many states (comb
 
 Success rate is increased. Because it's learning from the past history.
 
+I used some code snippet from this blog:
+ https://studywolf.wordpress.com/2012/11/25/reinforcement-learning-q-learning-and-exploration/
+
+ It was very well explained and easy to understand. And saved a lot time to implement Q-Learning part.
+
 
 ## Improve the Q-Learning Driving Agent
 
