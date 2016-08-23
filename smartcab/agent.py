@@ -31,7 +31,10 @@ class LearningAgent(Agent):
 
         # Prepare for a new trip
         self.state = '' # reset state
+
         self.last_action = None
+        self.last_state = None
+        self.last_reward = None
 
 
     def update(self, t):
@@ -49,10 +52,13 @@ class LearningAgent(Agent):
         # Execute action and get reward
         reward = self.env.act(self, action)
 
-        # Learn policy based on state, action, reward
-        self.learn(self.state, action, reward, deadline)
+        # Learn policy based on last state, action, reward
+        self.learn(self.last_state, self.last_action, self.last_reward, self.state)
 
         print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
+
+        # next state (kind of hacking?)
+        next_state = self.planner.next_waypoint()
 
         if action:
             self.last_action = action
@@ -80,18 +86,18 @@ class LearningAgent(Agent):
 
         return action
 
-    def learn(self, state, action, reward, deadline):
-        # next state (kind of hacking?)
-        next_state = self.planner.next_waypoint()
+    def learn(self, state1, action1, reward1, state2):
+        if state1 == None:
+            # no previuos state
+            return
 
-        # Q learning formula
+        # Q learning formula: Q(s,a) <- Q(s,a)+alpha[r+ gamma* max Q(s',a')-Q(s,a)]
+
         # Adapted from: https://studywolf.wordpress.com/2012/11/25/reinforcement-learning-q-learning-and-exploration/)
         # Reference from Udacity Machine Learning Course. https://classroom.udacity.com/nanodegrees/nd009/parts/0091345409/modules/e64f9a65-fdb5-4e60-81a9-72813beebb7e/lessons/5446820041/concepts/6348990570923
-        sa_value = self.mem.get((state, action), 0.0)
-        maxQ = max([self.mem.get((next_state, a), 0.0) for a in self.actions])
-
-        # Q(s,a) <- Q(s,a)+alpha[r+ gamma* max Q(s',a')-Q(s,a)]
-        self.mem[(state, action)] = sa_value + self.alpha * (reward + self.gamma*maxQ - sa_value)
+        sa1 = self.mem.get((state1, action1), 0.0)
+        sa`_max2 = max([self.mem.get((state2, a), 0.0) for a in self.actions]) # max Q(s',a'
+        self.mem[(state1, action1)] = sa1 + self.alpha * (reward + self.gamma*sa2_max2 - sa1)
 
         #print self.mem
 
