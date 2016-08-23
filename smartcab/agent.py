@@ -66,18 +66,6 @@ class LearningAgent(Agent):
     def choose_action(self, inputs):
         acts = self.actions[:] # all possible actions
 
-        # Policy1: Follow traffic rule
-        if inputs['light'] == 'red': # red light
-            # remove illegal moves
-            acts.remove('forward')
-            acts.remove('left')
-
-            if inputs['left'] == 'forward':
-                acts.remove('right') # no right turn
-        else: # green light
-            if inputs['oncoming'] == 'forward' or inputs['oncoming'] == 'right':
-                acts.remove('left') # no left turn
-
         # select greedy action with probability 1−p(k), k is iteration count
         self.k += 1
         self.epsilon = 1.0 - (1000.0/(2000.0 + 10 * self.k)) # k ~ 100 times * 30 * 10 constant
