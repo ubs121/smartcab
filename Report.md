@@ -10,7 +10,7 @@
 The reward was between -0.5 and 2.0, it's like
 * 0.0 reward for the 'None' action,
 * 2.0 reward for valid move
-* -0.5 reward for valid but other direction
+* -0.5 punishment for valid but other direction
 
 The smartcab was jumping from one edge to another, it was very annoying and weird.
 
@@ -24,34 +24,48 @@ The traffic light stays about 3 seconds (updates) at one state. So detouring tim
 
 This is a navigation problem with a deadline. The mission is to reach a given destination with a given time in a given environment (grid space).
 
-The current location of the agent is the most important metric to complete the task. But in this problem the agent doesn't know it's location and destination. So the agent should follow the waypoint, it may be punished if it goes in other direction.
-
 So I think, the following states are appropriate (ordered by importance):
 
-* `Next waypoint` - The next waypoint location relative to its current location and heading. Since current location and distance are unknown for the agent, the waypoint should be the most important information to navigate in the environment. Just by following the 'next_waypoint', the agent could reach the destination successfully, except traffic light rule. But the agent should learn other optimal moves while following the waypoint.
+* `Next waypoint` - The next waypoint location that is relative to its current location and heading. Since current location and distance are unknown for the agent, the waypoint is the most important guideline to navigate in the environment. Just by following the 'next_waypoint', the agent could reach the destination successfully, except the traffic light rule.
 
- So I created a implicit state, which is a mix of last action and last waypoint. I think, this mixed state is appropriate for the problem. Because a mixed state will be better for learning than a single waypoint state.
+  The agent should learn other optimal moves while following the waypoint. But it may be punished if it goes in other direction. Sometimes going in other direction, specially in a diagonal path to the destination, may minimize the reach time.
 
-* `Deadline` -  The current time left from the allotted deadline. The agent has to select a correct action according to deadline. It represents how many moves the agent has left, at maximum. The deadline must be enough value for the task, otherwise it would be a mission impossible. So we may skip this information and follow the waypoint.
+* `Light`, `Oncoming cars` are important inputs to obey traffic rule. We have no option to exclude these inputs. Initially I thought to hard code the traffic rule in my source code.
 
-* `Light` - traffic lights: red, green
+* `Deadline` -  The current time left from the allotted deadline. It represents how many moves the agent has left, at maximum.
 
-* `Oncoming cars` - oncoming vehicles from other directions
+  The agent has to select a correct action according to deadline. The deadline must be enough value for the task, otherwise it would be a mission impossible. So we may ignore this input and follow the waypoint.  
 
 
 **OPTIONAL**: How many states in total exist for the smartcab in this environment? Does this number seem reasonable given that the goal of Q-Learning is to learn and make informed decisions about each state? Why or why not?
 
 **ANSWER**:  
 
-I think, in total, there are 4 usefull states. The 'Next waypoint' and 'Deadline' states are the most important for this task. But, we could ignore 'Deadline', 'Light', 'Oncoming car' states, because we could maintain it by traffic policy.
+We need to keep state combinations as few as possible, because many state combinations will take longer time to "learn". Specially 'Deadline' will blow up the size of the state space, because it is an integer value and it could generate huge number of combinations of state.
 
-We need to keep state combinations as few as possible, because many states (combinations) will take longer time to "learn".
+The `Next waypoint`, `Light` and `Oncoming car` inputs are the most important for this task. So these are mandatory states.
+
+As explained before, we could ignore 'Deadline' input.
+
+So total number of states could be calculated as the following:
+
+`Total number of states = 3 waypoints x 2 lights
+  x 3 oncoming car directions x 3 left car directions x 3 right car directions = 162
+`
+
+In total, there is 162 states. I think, having 162 states (162 x 3 actions) is small size for the problem, and the agent should learn very quickly.
 
 ## Implement a Q-Learning Driving Agent
 
 **QUESTION**: What changes do you notice in the agent's behavior when compared to the basic driving agent when random actions were always taken? Why is this behavior occurring?
 
-Success rate is increased. Because it's learning from the past history.
+At beginning of simulation, the agent makes a lot jumping and round movements, and over time it starts doing long and frequent stops at intersections, but was going correct direction.
+
+Most of time, the agent was going in the direction suggested by the planner. But I was expecting more interesting movements. For example, to minimize waiting time, the agent could select another route on the red light or when oncoming car appears.
+
+Overall the success rate is increased a lot. It was 'learning' very quickly from the past history.
+
+Note:
 
 I used some code snippet from this blog:
  https://studywolf.wordpress.com/2012/11/25/reinforcement-learning-q-learning-and-exploration/
@@ -66,26 +80,34 @@ I used some code snippet from this blog:
 
 **ANSWER**
 
-I tuned the parameters as below:
+I did a experiment on the success rate using the discount factor and the learning rate. The following is a random output from the experiment:
 
-* alpha = 0.5  # learning rate
-* gamma = 0.9  # discount
-* epsilon = 0.7 # exploration. The epsilon increases when the number of iteration increased. Then, the agent selects the greedy action with probability of this epsilon.
+```
+Success rates over (alpha, gamma)
+(0.1, 0.1) :  99
+(0.1, 0.2) :  99
+(0.1, 0.3) :  98
+(0.1, 0.4) :  98
+(0.1, 0.5) :  99
+(0.1, 0.6) :  99
+(0.1, 0.7) :  98
+(0.1, 0.8) :  98
+(0.1, 0.9) :  97
 
-At beginning of simulation, the agent makes a lot round movement and takes long stop at intersections. Over time these mistakes lowered and success rate is increased.
+...
+```
 
-The success rate was  greater than 90% for 100 simulation run.
+The most high success rate was when alpha is below than 0.3. It may be confirming that the recommended value of alpha for a stochastic problem is 0.1. So I just followed the common practice and set the learning rate to 0.1.
+
+When alpha is 0.1, the success rate was greater than 90%, most of time. But sometimes it drops down to 60%, usually at higher gamma.  I couldn't find any reason or mistake. May be during the simulation it learnt some 'wrong lesson' and that lesson leads to a bad result.
+
 
 **QUESTION**: Does your agent get close to finding an optimal policy, i.e. reach the destination in the minimum possible time, and not incur any penalties? How would you describe an optimal policy for this problem?
 
 **ANSWER**
 
-I described the optimal policy as the following. And the goal is to maximize an average reward.
+The agent's goal is to learn how to reach a given destination with a given time. I think, the success rate (reached to the destination within a deadline) is the most important indicator for this problem.
 
-  ```
-  Average reward = Total_reward / Total_time_or_move
-  ```
+For several simulation, the agent's success rate shows more than 90% when alpha is 0.1.
 
-After several simulation my agent's average reward was more than 1.32. I don't know if it's optimal or not, but based on reward values the average reward could be 2.0 at maximum. In other words, the agent's every movement is correct and perfect, and get 2.0 reward on every movement. But it may be not ideal.
-
-By observation, the agent was very close to an optimal policy.
+I think, the optimal configuration for this problem is set alpha to 0.1 and gamma to 0.5. On this configuration, the agent was performing well.

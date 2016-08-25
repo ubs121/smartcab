@@ -328,7 +328,7 @@ pre.editor-colors .markdown .link .string,
 <ul>
 <li>0.0 reward for the &#39;None&#39; action,</li>
 <li>2.0 reward for valid move</li>
-<li>-0.5 reward for valid but other direction</li>
+<li>-0.5 punishment for valid but other direction</li>
 </ul>
 <p>The smartcab was jumping from one edge to another, it was very annoying and weird.</p>
 <p>The traffic light stays about 3 seconds (updates) at one state. So detouring time over the traffic light (at least 3 moves) was almost same as waiting time at the traffic light.</p>
@@ -336,43 +336,44 @@ pre.editor-colors .markdown .link .string,
 <p><strong>QUESTION</strong>: What states have you identified that are appropriate for modeling the smartcab and environment? Why do you believe each of these states to be appropriate for this problem?</p>
 <p><strong>ANSWER</strong>:</p>
 <p>This is a navigation problem with a deadline. The mission is to reach a given destination with a given time in a given environment (grid space).</p>
-<p>The current location of the agent is the most important metric to complete the task. But in this problem the agent doesn&#39;t know it&#39;s location and destination. So the agent should follow the waypoint, it may be punished if it goes in other direction.</p>
 <p>So I think, the following states are appropriate (ordered by importance):</p>
 <ul>
-<li><p><code>Next waypoint</code> - The next waypoint location relative to its current location and heading. Since current location and distance are unknown for the agent, the waypoint should be the most important information to navigate in the environment. Just by following the &#39;next_waypoint&#39;, the agent could reach the destination successfully, except traffic light rule. But the agent should learn other optimal moves while following the waypoint.</p>
-<p>So I created a implicit state, which is a mix of last action and last waypoint. I think, this mixed state is appropriate for the problem. Because a mixed state will be better for learning than a single waypoint state.</p>
+<li><p><code>Next waypoint</code> - The next waypoint location that is relative to its current location and heading. Since current location and distance are unknown for the agent, the waypoint is the most important guideline to navigate in the environment. Just by following the &#39;next_waypoint&#39;, the agent could reach the destination successfully, except the traffic light rule.</p>
+<p>The agent should learn other optimal moves while following the waypoint. But it may be punished if it goes in other direction. Sometimes going in other direction, specially in a diagonal path to the destination, may minimize the reach time.</p>
 </li>
-<li><p><code>Deadline</code> -  The current time left from the allotted deadline. The agent has to select a correct action according to deadline. It represents how many moves the agent has left, at maximum. The deadline must be enough value for the task, otherwise it would be a mission impossible. So we may skip this information and follow the waypoint.</p>
+<li><p><code>Light</code>, <code>Oncoming cars</code> are important inputs to obey traffic rule. We have no option to exclude these inputs. Initially I thought to hard code the traffic rule in my source code.</p>
 </li>
-<li><p><code>Light</code> - traffic lights: red, green</p>
-</li>
-<li><p><code>Oncoming cars</code> - oncoming vehicles from other directions</p>
+<li><p><code>Deadline</code> -  The current time left from the allotted deadline. It represents how many moves the agent has left, at maximum.</p>
+<p>The agent has to select a correct action according to deadline. The deadline must be enough value for the task, otherwise it would be a mission impossible. So we may ignore this input and follow the waypoint.  </p>
 </li>
 </ul>
 <p><strong>OPTIONAL</strong>: How many states in total exist for the smartcab in this environment? Does this number seem reasonable given that the goal of Q-Learning is to learn and make informed decisions about each state? Why or why not?</p>
 <p><strong>ANSWER</strong>:  </p>
-<p>I think, in total, there are 4 usefull states. The &#39;Next waypoint&#39; and &#39;Deadline&#39; states are the most important for this task. But, we could ignore &#39;Deadline&#39;, &#39;Light&#39;, &#39;Oncoming car&#39; states, because we could maintain it by traffic policy.</p>
-<p>We need to keep state combinations as few as possible, because many states (combinations) will take longer time to &quot;learn&quot;.</p>
+<p>We need to keep state combinations as few as possible, because many state combinations will take longer time to &quot;learn&quot;. Specially &#39;Deadline&#39; will blow up the size of the state space, because it is an integer value and it could generate huge number of combinations of state.</p>
+<p>The <code>Next waypoint</code>, <code>Light</code> and <code>Oncoming car</code> inputs are the most important for this task. So these are mandatory states.</p>
+<p>As explained before, we could ignore &#39;Deadline&#39; input.</p>
+<p>So total number of states could be calculated as the following:</p>
+<p><code>Total number of states = 3 waypoints x 2 lights
+  x 3 oncoming car directions x 3 left car directions x 3 right car directions = 162</code></p>
+<p>In total, there is 162 states. I think, having 162 states (162 x 3 actions) is small size for the problem, and the agent should learn very quickly.</p>
 <h2 id="implement-a-q-learning-driving-agent">Implement a Q-Learning Driving Agent</h2>
 <p><strong>QUESTION</strong>: What changes do you notice in the agent&#39;s behavior when compared to the basic driving agent when random actions were always taken? Why is this behavior occurring?</p>
-<p>Success rate is increased. Because it&#39;s learning from the past history.</p>
+<p>At beginning of simulation, the agent makes a lot jumping and round movements, and over time it starts doing long and frequent stops at intersections, but was going correct direction.</p>
+<p>Most of time, the agent was going in the direction suggested by the planner. But I was expecting more interesting movements. For example, to minimize waiting time, the agent could select another route on the red light or when oncoming car appears.</p>
+<p>Overall the success rate is increased a lot. It was &#39;learning&#39; very quickly from the past history.</p>
+<p>Note:</p>
 <p>I used some code snippet from this blog:
  <a href="https://studywolf.wordpress.com/2012/11/25/reinforcement-learning-q-learning-and-exploration/">https://studywolf.wordpress.com/2012/11/25/reinforcement-learning-q-learning-and-exploration/</a></p>
 <p> It was very well explained and easy to understand. And saved a lot time to implement Q-Learning part.</p>
 <h2 id="improve-the-q-learning-driving-agent">Improve the Q-Learning Driving Agent</h2>
 <p><strong>QUESTION</strong>: Report the different values for the parameters tuned in your basic implementation of Q-Learning. For which set of parameters does the agent perform best? How well does the final driving agent perform?</p>
 <p><strong>ANSWER</strong></p>
-<p>I tuned the parameters as below:</p>
-<ul>
-<li>alpha = 0.5  # learning rate</li>
-<li>gamma = 0.9  # discount</li>
-<li>epsilon = 0.7 # exploration. The epsilon increases when the number of iteration increased. Then, the agent selects the greedy action with probability of this epsilon.</li>
-</ul>
-<p>At beginning of simulation, the agent makes a lot round movement and takes long stop at intersections. Over time these mistakes lowered and success rate is increased.</p>
-<p>The success rate was  greater than 90% for 100 simulation run.</p>
+<p>I did a experiment on the success rate using the discount factor and the learning rate. The following is a random output from the experiment:</p>
+<pre class="editor-colors lang-text"><div class="line"><span class="text plain"><span class="meta paragraph text"><span>Success&nbsp;rates&nbsp;over&nbsp;(alpha,&nbsp;gamma)</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.1)&nbsp;:&nbsp;&nbsp;99</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.2)&nbsp;:&nbsp;&nbsp;99</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.3)&nbsp;:&nbsp;&nbsp;98</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.4)&nbsp;:&nbsp;&nbsp;98</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.5)&nbsp;:&nbsp;&nbsp;99</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.6)&nbsp;:&nbsp;&nbsp;99</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.7)&nbsp;:&nbsp;&nbsp;98</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.8)&nbsp;:&nbsp;&nbsp;98</span></span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>(0.1,&nbsp;0.9)&nbsp;:&nbsp;&nbsp;97</span></span></span></div><div class="line"><span class="text plain"><span>&nbsp;</span></span></div><div class="line"><span class="text plain"><span class="meta paragraph text"><span>...</span></span></span></div></pre><p>The most high success rate was when alpha is below than 0.3. It may be confirming that the recommended value of alpha for a stochastic problem is 0.1. So I just followed the common practice and set the learning rate to 0.1.</p>
+<p>When alpha is 0.1, the success rate was greater than 90%, most of time. But sometimes it drops down to 60%, usually at higher gamma.  I couldn&#39;t find any reason or mistake. May be during the simulation it learnt some &#39;wrong lesson&#39; and that lesson leads to a bad result.</p>
 <p><strong>QUESTION</strong>: Does your agent get close to finding an optimal policy, i.e. reach the destination in the minimum possible time, and not incur any penalties? How would you describe an optimal policy for this problem?</p>
 <p><strong>ANSWER</strong></p>
-<p>I described the optimal policy as the following. And the goal is to maximize an average reward.</p>
-<pre class="editor-colors lang-text"><div class="line"><span class="text plain"><span>&nbsp;&nbsp;</span><span class="meta paragraph text"><span>Average&nbsp;reward&nbsp;=&nbsp;Total_reward&nbsp;/&nbsp;Total_time_or_move</span></span></span></div></pre><p>After several simulation my agent&#39;s average reward was more than 1.32. I don&#39;t know if it&#39;s optimal or not, but based on reward values the average reward could be 2.0 at maximum. In other words, the agent&#39;s every movement is correct and perfect, and get 2.0 reward on every movement. But it may be not ideal.</p>
-<p>By observation, the agent was very close to an optimal policy.</p></body>
+<p>The agent&#39;s goal is to learn how to reach a given destination with a given time. I think, the success rate (reached to the destination within a deadline) is the most important indicator for this problem.</p>
+<p>For several simulation, the agent&#39;s success rate shows more than 90% when alpha is 0.1.</p>
+<p>I think, the optimal configuration for this problem is set alpha to 0.1 and gamma to 0.5. On this configuration, the agent was performing well.</p></body>
 </html>
