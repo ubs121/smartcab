@@ -108,6 +108,25 @@ When alpha is 0.1, the success rate was greater than 90%, most of time. But some
 
 The agent's goal is to learn how to reach a given destination with a given time. I think, the success rate (reached to the destination within a deadline) is the most important indicator for this problem.
 
-For several simulation, the agent's success rate shows more than 90% when alpha is 0.1.
+Also the agent should obey all traffic rules. In the beginning of the simulation, the agent makes frequent non-valid moves against traffic rule, and it gets better for the later trials. So I measured illegal moves for last 10 trails.
+
+```
+Performance for last 10 trials
+-------------------
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+{'illegal': 0, 'success': True}
+```
+
+It was almost 100% correct moves, but very occasionally it makes illegal moves,  for the last 10 trials.
+
+For several simulation, the agent's success rate shows more than 90% when alpha is 0.1, for last 10 trails it was around 99%.
 
 I think, the optimal configuration for this problem is set alpha to 0.1 and gamma to 0.5. On this configuration, the agent was performing well.
