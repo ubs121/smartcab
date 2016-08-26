@@ -25,18 +25,25 @@ class LearningAgent(Agent):
         self.gamma = options['gamma']
         self.mem = {} # learning memory
 
-        self.success = 0
+        # trial results
+        self.trail_no = 0
+        self.perf = {}
 
     def reset(self, destination=None):
+        # save previuos trial results
+        self.trail_no += 1
+        #self.perf[trail_no] = {'success':}
+
+        # start new trial
         self.planner.route_to(destination)
 
         # Prepare for a new trip
+        self.success = False
         self.state = '' # reset state
         self.last_action = None
         self.last_state = None
         self.last_reward = None
-
-
+        self.last_inputs = None
 
     def update(self, t):
         # Gather inputs
@@ -63,9 +70,10 @@ class LearningAgent(Agent):
         self.last_waypoint = self.state
         self.last_action = action
         self.last_reward = reward
+        self.last_inputs = inputs
 
         # measure performance
-        self.measure_results()
+        self.measure()
 
     def choose_action(self, inputs):
         # assume Q = 0.0 for unknown state-action, it's preferred over a failed state-action
@@ -95,11 +103,31 @@ class LearningAgent(Agent):
 
 
     """ ---------- FOR MEASUREMENT PURPOSE ------------ """
-    def measure_results(self):
-        agentState = self.env.agent_states[self]
+    def measure(self):
+        p = self.perf.get(self.trail_no, {'illegal': 0, 'success': False})
 
+        # count illegal moves
+        if self.last_inputs['light'] == 'red':
+            if  self.last_action == 'forward' or self.last_action == 'left':
+                p['illegal'] += 1
+            else:
+                if self.last_action == 'right' and self.last_inputs['left'] == 'forward':
+                    p['illegal'] += 1
+                else:
+                    pass # ok
+
+
+        elif self.last_inputs['light'] == 'green':
+            if self.last_action == 'left' and (self.last_inputs['oncoming'] == 'right' or self.last_inputs['oncoming'] == 'straight'):
+                p['illegal'] += 1
+            else:
+                pass # ok
+
+        # check if done
         if self.env.done:
-            self.success += 1
+            p['success'] = True
+
+        self.perf[self.trail_no] = p
 
 def run():
     """Run the agent for a finite number of trials."""
@@ -111,19 +139,22 @@ def run():
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.5, display=True)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0.01, display=False)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
     sim.run(n_trials=100)  # run for a specified number of trials
     # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
-    print 'Success trials', a.success
-    return a.success
+
+    print 'Performance for last 10 trials\n-------------------'
+    for t in range(90, 100):
+        print a.perf[t]
+
 
 if __name__ == '__main__':
     run()
 
     # parameter tuning test
-    
+
     # options['alpha'] = 0.1
     # options['gamma'] = 0.1
 
